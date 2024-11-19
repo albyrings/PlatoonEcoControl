@@ -1,0 +1,13 @@
+Tesi BANFI FABIO
+Il primo algoritmo da lanciare è quello denominato 'semafori'.
+Dopo averlo lanciato chiede l'intervallo di discretizzazione della simulazione(nel nostro caso 10-3).
+successivamente comparirà a video la richiesta della velocità iniziale. visto che la velocità di riferimento è di circa 14 [m/s] durante le simulazioni fatte ho inserito una velocità 
+prossima a quella del riferimento, dunque ho usato 13.5 [m/s].
+Dopodichè in automatico vengono chiamati in sequenza i codici denominati 'pruning _offline', 'plot_sem_times' e 'ottimizzazione_offline'.
+A questo punto laparte offline è terminata.
+Per lanciare invece la simulazione di replanning con event-trigger e controllore sliding mode il codice da lanciare è 'modello_sliding' che richiama in automatico, se le 
+condizioni di event-trigger vengono rispettate, i codici 're_planner_provak_ok_sem' che calcola il nuovo spazio di ricerca ridotto, in automatico,
+al termine dell'esecuzione di questo codice viene chiamato il codice 'plot_replanning_ok' che crea i grafi e trova il percorso ottimo usando l'algoritmo di Djikstra. 
+Successivamente viene eseguito in automatico il codice 'ott_re_ok' che esegue l'ottimizzazione sul percorso trovato dal codice precedente e viene generato il nuovo riferimento
+per le fasi di ripianifica successive. Se invece si vuole lanciare la simulazione di replanning con PD il codice da lanciare è 'modelli_PD' che richiamerà, se le condizioni di event
+trigger vengono rispettate, gli stessi codici visti per la simulazione con sliding mode.
