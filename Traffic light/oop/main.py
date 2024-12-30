@@ -1,3 +1,8 @@
+"""
+    TODO: fix optimization shift for plotting
+"""
+
+
 
 from Simulation import Simulation
 from Vehicle import Platoon, Vehicle
@@ -176,28 +181,33 @@ def objective(x):
         energy_cost += delta_t * (b1 * u_bar * v_bar + b2 * u_bar**2)
     return energy_cost
 
-constraints = []
-for i in range(1, len(t_min)):
-    constraints.append({'type': 'ineq', 'fun': lambda x, i=i: x[i] - t_min[i]})  # t_i >= t_min[i]
-    constraints.append({'type': 'ineq', 'fun': lambda x, i=i: t_max[i] - x[i]})  # t_i <= t_max[i]
-    constraints.append({'type': 'ineq', 'fun': lambda x, i=i: x[i] - x[i - 1] - 1e-3})  # t_i > t_{i-1}
 
-# Initial guess: Use Dijkstra times directly
-x0 = optimal_times.copy()
+def optimization_algorithm(t_min,t_max, optimal_times):
+    constraints = []
+    for i in range(1, len(t_min)):
+        constraints.append({'type': 'ineq', 'fun': lambda x, i=i: x[i] - t_min[i]})  # t_i >= t_min[i]
+        constraints.append({'type': 'ineq', 'fun': lambda x, i=i: t_max[i] - x[i]})  # t_i <= t_max[i]
+        constraints.append({'type': 'ineq', 'fun': lambda x, i=i: x[i] - x[i - 1] - 1e-3})  # t_i > t_{i-1}
 
-# Optimization bounds
-bounds = [(0,0)]
-print(optimal_times)
+    # Initial guess: Use Dijkstra times directly
+    x0 = optimal_times.copy()
 
-for i in range(1, len(t_min)):
-    bound = (max(t_min[i], optimal_times[i] - 5), min(t_max[i], optimal_times[i] + 5))
-    bounds.append(bound)
+    # Optimization bounds
+    bounds = [(t_min[0],t_max[0])]
+    print(optimal_times)
 
-print(bounds)
-print(t_min)
+    for i in range(1, len(t_min)):
+        bound = (max(t_min[i], optimal_times[i] - 5), min(t_max[i], optimal_times[i] + 5))
+        bounds.append(bound)
 
-# Run the optimization
-result = minimize(objective, x0, bounds=bounds, constraints=constraints, method='SLSQP')
+    print(bounds)
+    print(t_min)
+
+    # Run the optimization
+    result = minimize(objective, x0, bounds=bounds, constraints=constraints, method='SLSQP')
+    return result, bounds
+
+result,bounds = optimization_algorithm(t_min,t_max, optimal_times)
 
 # Display results
 optimization_result = result.x 
@@ -259,7 +269,7 @@ def no_shift():
 
 
 #no_shift()
-def shift(n_of_vehicles = 3, time_for_vehicle = 3):
+def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for_vehicle = 3):
     inner_bounds = bounds.copy()
     inner_bounds.pop(0)
     inner_bounds.pop(-1)
@@ -273,8 +283,95 @@ def shift(n_of_vehicles = 3, time_for_vehicle = 3):
     
     if n_of_vehicles > max_vehicles:
         print(f"Number of vehicles saturated the intersection, {max_vehicles} is the maximum number of vehicles allowed")
+        
+        # divide the platoon of vehicles in independent platoons of less than max_vehicles, and recomputing the optimal times for each platoon
+        
+       #shift(bounds, optimization_result,t_min, t_max, min(max_vehicles,n_of_vehicles), 1, )
+        platoon_number = n_of_vehicles
+        passed_vehicles = max_vehicles
+        #plt.figure(figsize=(10, 5))
+        ix = 0
+        while platoon_number > max_vehicles:
+            platoon_number -= max_vehicles
+            n_of_vehicles = min(platoon_number, max_vehicles)
+            
+            
+            t_min_platoon = np.zeros(n_intersections + 2)
+            t_max_platoon = np.zeros(n_intersections + 2)
+            
+            t_min_platoon[0] = time_for_vehicle*(passed_vehicles+1)
+            t_max_platoon[0] = time_for_vehicle*(passed_vehicles+1)
+            
+            t_min_platoon, t_max_platoon = pruning(t_min_platoon, t_max_platoon)
+            
+            t_min_platoon[-1] = tf + time_for_vehicle*(passed_vehicles+1)
+            t_max_platoon[-1] = tf + time_for_vehicle*(passed_vehicles+1)
+            optimal_times_platoon = compute_dijkstra(t_min_platoon, t_max_platoon, list_intersection)
+            result_platoons,bounds_platoon = optimization_algorithm(t_min_platoon,t_max_platoon, optimal_times_platoon)
+            # Display results
+            optimization_result_platoon = result_platoons.x 
+            if result_platoons.success:
+                print("Optimization successful platoon!")
+                print("Optimal crossing times:")
+                for i, t in enumerate(result_platoons.x):
+                    print(f"t_{i}: {t:.2f} seconds")
+                print(f"Total energy cost: {result_platoons.fun:.2f}")
+            else:
+                print("Optimization failed platoon:", result_platoons.message)
+                
+            shift_optimal_times_platoon = optimization_result_platoon.copy()
+    
+    
+    
+    
+            for i in range(len(shift_optimal_times_platoon)):
+                shift_optimal_times_platoon[i] = max(shift_optimal_times_platoon[i] - time_for_vehicle*(n_of_vehicles - 1), bounds[i][0])
+                
+            
+            plt.figure(figsize=(10, 5))
+            plt.plot(t_min_platoon, list_intersection, label='Feasible Time Intervals')
+            plt.plot(t_max_platoon, list_intersection, label='Feasible Time Intervals')
+            plt.hlines(list_intersection, t_min_platoon, t_max_platoon, color='gray', alpha=0.5)
 
-        return
+            # plot optimal times
+
+            plt.scatter(shift_optimal_times_platoon, list_intersection, color='b', label='Optimal Times')
+
+            #plot the vehicle path 
+
+            for i in range(1, len(t_min)):
+                plt.plot(bounds_platoon[i], [list_intersection[i], list_intersection[i]], color='green', linewidth=2)
+                
+                
+            for i in range(1, len(shift_optimal_times_platoon)):
+                plt.plot([shift_optimal_times_platoon[i - 1], shift_optimal_times_platoon[i]], [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='orange')
+                for j in range(n_of_vehicles):
+                    plt.plot([shift_optimal_times_platoon[i - 1] + time_for_vehicle*j, shift_optimal_times_platoon[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='red')
+
+            
+
+
+
+            plt.xlabel('Time (s)')
+            plt.ylabel('Distance (m)')
+            plt.grid(True)
+            plt.title(f'Feasible Time Intervals at Intersections {ix}')
+            ix += 1
+            
+            passed_vehicles += n_of_vehicles
+            
+        n_of_vehicles = max_vehicles                
+            
+                
+            
+            
+            
+            
+            
+            
+            
+
+        
     shift_optimal_times = optimization_result.copy()
     
     
@@ -316,4 +413,4 @@ def shift(n_of_vehicles = 3, time_for_vehicle = 3):
 
     plt.show()
 
-shift(10, 1)
+shift(bounds, optimization_result,t_min, t_max, 31, 1, )

@@ -1,6 +1,6 @@
 
 v_min = 5  # Minimum speed (m/s)
-v_max = 14  # Maximum speed (m/s)
+v_max = 14 # Maximum speed (m/s)
 final_time = 200
 final_distance = 1800
 
