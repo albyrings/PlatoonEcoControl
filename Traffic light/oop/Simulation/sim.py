@@ -16,7 +16,6 @@ def simulate_platoon_shift(n_of_vehicles, time_for_vehicle, disturbance_vehicle)
 
     # Simula i tempi di attraversamento iniziali del plotone
     
-    
     print(f"Simulazione iniziale del movimento del plotone con {n_of_vehicles} veicoli")
     shift_sim(n_of_vehicles, time_for_vehicle)
 

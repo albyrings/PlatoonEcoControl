@@ -326,7 +326,7 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
     
     
             for i in range(len(shift_optimal_times_platoon)):
-                shift_optimal_times_platoon[i] = max(shift_optimal_times_platoon[i] - time_for_vehicle*(n_of_vehicles - 1), bounds[i][0])
+                shift_optimal_times_platoon[i] = max(shift_optimal_times_platoon[i] - time_for_vehicle*(n_of_vehicles - 1), bounds_platoon[i][0])
                 
             
             plt.figure(figsize=(10, 5))
@@ -344,19 +344,16 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
                 plt.plot(bounds_platoon[i], [list_intersection[i], list_intersection[i]], color='green', linewidth=2)
                 
                 
-            for i in range(1, len(shift_optimal_times_platoon)):
+            for j in range(n_of_vehicles):
                 plt.plot([shift_optimal_times_platoon[i - 1], shift_optimal_times_platoon[i]], [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='orange')
                 
                 if counter < disturbance_vehicle or counter >= disturbance_vehicle + n_of_disturbance:
-                    for j in range(n_of_vehicles):
+                    for i in range(1, len(shift_optimal_times_platoon)):
                         plt.plot([shift_optimal_times_platoon[i - 1] + time_for_vehicle*j, shift_optimal_times_platoon[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='red')
                         print(j,counter,"RED")
-                        
-                        
-
                 else:
-                    for j in range(n_of_vehicles):
-                         plt.plot([shift_optimal_times_platoon[i - 1] + time_for_vehicle*j, shift_optimal_times_platoon[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='yellow')
+                    for i in range(1, len(shift_optimal_times_platoon)):
+                         plt.plot([shift_optimal_times_platoon[i - 1] + time_for_vehicle*j, shift_optimal_times_platoon[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='w')
                          print(j,counter,"YELLOW")
                 counter += 1        
                          
@@ -367,7 +364,7 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
 
             plt.xlabel('Time (s)')
             plt.ylabel('Distance (m)')
-            plt.grid(True)
+            plt.grid(False)
             plt.title(f'Feasible Time Intervals at Intersections {ix}')
             ix += 1
             
@@ -396,17 +393,17 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
         plt.plot(bounds[i], [list_intersection[i], list_intersection[i]], color='green', linewidth=2)
         
         
-    for i in range(1, len(shift_optimal_times)):
+    for j in range(n_of_vehicles):
         plt.plot([shift_optimal_times[i - 1], shift_optimal_times[i]], [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='orange')
         
         if (counter < disturbance_vehicle or counter >= disturbance_vehicle + n_of_disturbance):
-            for j in range(n_of_vehicles):
+            for i in range(1, len(shift_optimal_times)):
                 plt.plot([shift_optimal_times[i - 1] + time_for_vehicle*j, shift_optimal_times[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='red')
                 print(j,counter,"RED")
               
         else:
-            for j in range(n_of_vehicles):
-                plt.plot([shift_optimal_times[i - 1] + time_for_vehicle*j, shift_optimal_times[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='yellow')
+            for i in range(1, len(shift_optimal_times)):
+                plt.plot([shift_optimal_times[i - 1] + time_for_vehicle*j, shift_optimal_times[i]+time_for_vehicle*j] , [list_intersection[i - 1], list_intersection[i]],linewidth = 1, color='w')
                 print(j,counter,"YELLOW")
         counter += 1        
                 
@@ -417,7 +414,7 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
 
     plt.xlabel('Time (s)')
     plt.ylabel('Distance (m)')
-    plt.grid(True)
+    plt.grid(False)
     plt.title('Feasible Time Intervals at Intersections')
 
 
@@ -425,4 +422,5 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
 
 
 def shift_sim(n_of_vehicles, time_for_vehicle,disturbance_vehicle = 0, n_of_disturbance = 0):
+    
     shift(bounds, optimization_result,t_min, t_max, n_of_vehicles, time_for_vehicle, disturbance_vehicle, n_of_disturbance)
