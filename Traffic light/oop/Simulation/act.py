@@ -18,11 +18,11 @@ import networkx as nx
 
     # Define traffic lights
 intersections = [
-    {"distance": 300, "green_start": 13, "green_end": 23},
-    {"distance": 600, "green_start": 3, "green_end": 13},
-    {"distance": 900, "green_start": 28, "green_end": 38},
-    {"distance": 1200, "green_start": 15, "green_end": 25},
-    {"distance": 1550, "green_start": 5, "green_end": 15},
+    {"distance": 300, "green_start": 13, "green_end": 18},
+    {"distance": 600, "green_start": 3, "green_end": 8},
+    {"distance": 900, "green_start": 28, "green_end": 33},
+    {"distance": 1200, "green_start": 15, "green_end": 20},
+    {"distance": 1550, "green_start": 5, "green_end": 10},
 ] 
 n = len(intersections)
 # Constants
@@ -377,7 +377,7 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
     for i in range(len(shift_optimal_times)):
         shift_optimal_times[i] = max(shift_optimal_times[i] - time_for_vehicle*(n_of_vehicles - 1), bounds[i][0])
     
-    plt.figure(figsize=(5, 5))
+   # plt.figure(figsize=(5, 5))
     
     plt.plot(t_min, list_intersection, label='Feasible Time Intervals')
     plt.plot(t_max, list_intersection, label='Feasible Time Intervals')
