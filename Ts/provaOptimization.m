@@ -69,10 +69,49 @@ nodeId = 1;
 Nodes(nodeId) = struct('id', nodeId, 't', 0, 'd', 0, 'int', 0); % sorgente
 nodeId = nodeId + 1;
 for i = 1:nIntersections
-    t_values = linspace(t_min(i), t_max(i), nNodesPerIntersection);
-    for j = 1:length(t_values)
-        Nodes(nodeId) = struct('id', nodeId, 't', t_values(j), 'd', d(i), 'int', i);
-        nodeId = nodeId + 1;
+    light = traffic_lights(i);
+    for k = 0:ceil(tf / light.cycle_time) % Iterate through enough cycles
+        cycle_start = k * light.cycle_time + light.offset;
+        green_start_cycle = light.green_start;
+        green_end_cycle = light.green_end;
+
+        if green_start_cycle <= green_end_cycle
+            abs_green_start = cycle_start + green_start_cycle;
+            abs_green_end = cycle_start + green_end_cycle;
+            if abs_green_start <= tf
+                overlap_start = max(abs_green_start, t_min(i));
+                overlap_end = min(abs_green_end, t_max(i));
+                if overlap_start < overlap_end
+                    middle_time = (overlap_start + overlap_end) / 2;
+                    Nodes(nodeId) = struct('id', nodeId, 't', middle_time, 'd', d(i), 'int', i);
+                    nodeId = nodeId + 1;
+                end
+            end
+        else % Wrap around
+            abs_green_start_1 = cycle_start + green_start_cycle;
+            abs_green_end_1 = cycle_start + light.cycle_time;
+            if abs_green_start_1 <= tf
+                overlap_start = max(abs_green_start_1, t_min(i));
+                overlap_end = min(abs_green_end_1, t_max(i));
+                if overlap_start < overlap_end
+                    middle_time = (overlap_start + overlap_end) / 2;
+                    Nodes(nodeId) = struct('id', nodeId, 't', middle_time, 'd', d(i), 'int', i);
+                    nodeId = nodeId + 1;
+                end
+            end
+
+            abs_green_start_2 = cycle_start;
+            abs_green_end_2 = cycle_start + green_end_cycle;
+            if abs_green_end_2 <= tf
+                overlap_start = max(abs_green_start_2, t_min(i));
+                overlap_end = min(abs_green_end_2, t_max(i));
+                if overlap_start < overlap_end
+                    middle_time = (overlap_start + overlap_end) / 2;
+                    Nodes(nodeId) = struct('id', nodeId, 't', middle_time, 'd', d(i), 'int', i);
+                    nodeId = nodeId + 1;
+                end
+            end
+        end
     end
 end
 Nodes(nodeId) = struct('id', nodeId, 't', tf, 'd', final_distance, 'int', nIntersections+1); % destinazione
@@ -82,22 +121,29 @@ nNodes = nodeId;
 Edges = struct('from', {}, 'to', {}, 'w', {});
 edgeCount = 1;
 for i = 1:nNodes
+    current_level = Nodes(i).int;
     for j = 1:nNodes
-        if Nodes(j).t > Nodes(i).t && Nodes(j).d > Nodes(i).d
-            % Se il nodo j indica un incrocio, assicuriamoci che il crossing time sia verde.
-            if Nodes(j).int > 0 && Nodes(j).int <= nIntersections
-                if ~is_green(traffic_lights(Nodes(j).int), Nodes(j).t)
-                    continue;
+        next_level = Nodes(j).int;
+        % Un nodo è al "livello successivo" se il suo indice di intersezione è maggiore di uno
+        % rispetto al nodo corrente. La sorgente ha int=0, le intersezioni hanno int da 1 a nIntersections,
+        % e la destinazione ha int=nIntersections+1.
+        if next_level == current_level + 1
+            if Nodes(j).t > Nodes(i).t && Nodes(j).d > Nodes(i).d
+                % Se il nodo j indica un incrocio, assicuriamoci che il crossing time sia verde.
+                if Nodes(j).int > 0 && Nodes(j).int <= nIntersections
+                    if ~is_green(traffic_lights(Nodes(j).int), Nodes(j).t)
+                        continue;
+                    end
                 end
-            end
-            delta_t = Nodes(j).t - Nodes(i).t;
-            delta_d = Nodes(j).d - Nodes(i).d;
-            v_link = delta_d / delta_t;
-            if v_link >= v_min && v_link <= v_max
-                E_link = delta_t * (b1*v_link + b2*v_link^2);
-                w = E_link;  % modelliamo E_jump = 0 in questa semplificazione
-                Edges(edgeCount) = struct('from', Nodes(i).id, 'to', Nodes(j).id, 'w', w);
-                edgeCount = edgeCount + 1;
+                delta_t = Nodes(j).t - Nodes(i).t;
+                delta_d = Nodes(j).d - Nodes(i).d;
+                v_link = delta_d / delta_t;
+                if v_link >= v_min && v_link <= v_max
+                    E_link = delta_t * (b1*v_link + b2*v_link^2);
+                    w = E_link;  % modelliamo E_jump = 0 in questa semplificazione
+                    Edges(edgeCount) = struct('from', Nodes(i).id, 'to', Nodes(j).id, 'w', w);
+                    edgeCount = edgeCount + 1;
+                end
             end
         end
     end
@@ -105,6 +151,7 @@ end
 
 %% Risoluzione del percorso ottimo con Dijkstra
 [path, cost] = dijkstra(Nodes, Edges, Nodes(1).id, Nodes(end).id);
+
 fprintf('Costo energetico ottimo: %f\n', cost);
 fprintf('Percorso ottimo (node id e crossing time):\n');
 for k = 1:length(path)
