@@ -82,7 +82,7 @@ for i = 1:nIntersections
                 overlap_start = max(abs_green_start, t_min(i));
                 overlap_end = min(abs_green_end, t_max(i));
                 if overlap_start < overlap_end
-                    middle_time = (overlap_start + overlap_end) / 2;
+                    middle_time = ceil((overlap_start + overlap_end) / 2);
                     Nodes(nodeId) = struct('id', nodeId, 't', middle_time, 'd', d(i), 'int', i);
                     nodeId = nodeId + 1;
                 end
