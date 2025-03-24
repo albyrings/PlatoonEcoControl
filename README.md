@@ -1,1 +1,1 @@
-blood and tear for a laughtale that isn't funny after all
+blood and tears for a laughtale that isn't funny after all
