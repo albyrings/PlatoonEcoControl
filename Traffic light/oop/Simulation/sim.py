@@ -1,7 +1,7 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from act import *# Assumendo che le funzioni precedenti siano salvate in shift_code.py
+from act import *
 
 # Configurazioni iniziali per il test
 n_of_vehicles = 13  # Numero di veicoli nel plotone

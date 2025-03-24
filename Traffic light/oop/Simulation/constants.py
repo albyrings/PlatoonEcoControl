@@ -1,4 +1,5 @@
 
+#costanti per il modello di simulazione
 v_min = 5  # Minimum speed (m/s)
 v_max = 14 # Maximum speed (m/s)
 final_time = 200
@@ -6,7 +7,6 @@ final_distance = 1800
 
 T = 30  # Traffic light cycle time (seconds)
 tf = final_time
-
 
 # Constants for the energy function
 b1 = 0.1  # Coefficient for energy

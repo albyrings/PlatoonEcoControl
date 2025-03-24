@@ -12,7 +12,7 @@ final_distance = 1800
 intersections = [
     {"distance": 300, "green_start": 13, "green_end": 23},
     {"distance": 600, "green_start": 3, "green_end": 13},
-    {"distance": 900, "green_start": 28, "green_end": 38},
+    {"distance": 900, "green_start": 20, "green_end": 30},
     {"distance": 1200, "green_start": 15, "green_end": 25},
     {"distance": 1550, "green_start": 5, "green_end": 15},
 ] 

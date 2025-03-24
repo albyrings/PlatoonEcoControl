@@ -1,11 +1,7 @@
-"""
-    TODO: fix optimization shift for plotting
-"""
-
-
 
 from Simulation import Simulation
-from Vehicle import Platoon, Vehicle
+from Vehicle import Vehicle
+from Platoon import Platoon
 from TrafficLight import TrafficLight
 from constants import *
 import numpy as np
@@ -108,13 +104,7 @@ def pruning(t_min, t_max):
     
     return t_min, t_max
 
-t_min, t_max = pruning(t_min, t_max)
 
-t_min[-1] = tf
-t_max[-1] = tf
-list_intersection = [el['distance'] for el in intersections ]
-list_intersection.append(final_distance)
-list_intersection.insert(0, 0)
 
 def compute_dijkstra(t_min, t_max, distances, t_jump=1):
     """
@@ -166,7 +156,6 @@ def compute_dijkstra(t_min, t_max, distances, t_jump=1):
     optimal_times = [node[1] for node in path[:-1]]  # Exclude the final node
     return optimal_times
 
-optimal_times = compute_dijkstra(t_min, t_max, list_intersection)
 
 # Objective function: Minimize energy cost
 def objective(x):
@@ -207,26 +196,11 @@ def optimization_algorithm(t_min,t_max, optimal_times):
     result = minimize(objective, x0, bounds=bounds, constraints=constraints, method='SLSQP')
     return result, bounds
 
-result,bounds = optimization_algorithm(t_min,t_max, optimal_times)
-
-# Display results
-optimization_result = result.x 
-if result.success:
-    print("Optimization successful!")
-    print("Optimal crossing times:")
-    for i, t in enumerate(result.x):
-        print(f"t_{i}: {t:.2f} seconds")
-    print(f"Total energy cost: {result.fun:.2f}")
-else:
-    print("Optimization failed:", result.message)
-
-"""No Shift"""
 def max_veichles(inner_bounds,time_for_vehicle = 3):
         l = []
         for i in range(len(inner_bounds)): 
             l.append((inner_bounds[i][1] - optimization_result[i+1]))
         return int(min(l)//time_for_vehicle)
-    
     
 def no_shift():
     inner_bounds = bounds.copy()
@@ -424,3 +398,23 @@ def shift(bounds, optimization_result, t_min, t_max, n_of_vehicles = 3, time_for
 def shift_sim(n_of_vehicles, time_for_vehicle,disturbance_vehicle = 0, n_of_disturbance = 0):
     
     shift(bounds, optimization_result,t_min, t_max, n_of_vehicles, time_for_vehicle, disturbance_vehicle, n_of_disturbance)
+
+t_min, t_max = pruning(t_min, t_max)
+t_min[-1] = tf
+t_max[-1] = tf
+list_intersection = [el['distance'] for el in intersections ]
+list_intersection.append(final_distance)
+list_intersection.insert(0, 0)
+## Compute optimal times using Dijkstra's algorithm 
+optimal_times = compute_dijkstra(t_min, t_max, list_intersection)
+result,bounds = optimization_algorithm(t_min,t_max, optimal_times)
+# Display results
+optimization_result = result.x 
+if result.success:
+    print("Optimization successful!")
+    print("Optimal crossing times:")
+    for i, t in enumerate(result.x):
+        print(f"t_{i}: {t:.2f} seconds")
+    print(f"Total energy cost: {result.fun:.2f}")
+else:
+    print("Optimization failed:", result.message)
