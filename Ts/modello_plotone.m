@@ -14,8 +14,8 @@ b4 = 3;
 delta =  @(t) 0 * (b1 + b2*(sin((1/b3)*t+b4) + 0.25*rand)); % Forza esterna (N)
 
 % Distanza target
-d_init = 1;
-d_min = 4; 
+d_init = 4;
+d_min = 1; 
 
 % Parametri PID per il leader (controllo velocità)
 K_p_speed = 7000;     

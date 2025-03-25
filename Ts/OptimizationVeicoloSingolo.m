@@ -17,7 +17,7 @@ b1_jump = 0.5;  b2_jump = 0.05; % Energia per il salto (E_jump)
 accel = 1000;                 % Accelerazione (usata per decelerazione)
 
 %% Parametro per simulazione: velocità iniziale
-initial_speed = v_max;   % Il veicolo parte a velocità massima
+initial_speed = 0;   % Il veicolo parte a velocità massima
 
 %% Creazione degli incroci e semafori
 traffic_lights = [
@@ -175,7 +175,6 @@ plot(opt_t, opt_d, 'k--', 'LineWidth', 3);  % visualizza solo la traiettoria ott
 % - Se il tempo totale del tratto risulta inferiore al tempo previsto, il veicolo attende.
 % - Infine, se al momento dell'arrivo il semaforo è rosso, attende fino a next_green.
 dt = 0.01;  % passo di simulazione
-[t_seg, d_seg, v_seg] = simulate_vehicle_segmented(opt_nodes, dt, traffic_lights, initial_speed, accel);
 figure;
 subplot(2,1,1);
 plot(t_seg, d_seg, 'm-', 'LineWidth', 2);
@@ -305,100 +304,3 @@ function [path, cost] = dijkstra(Nodes, Edges, source, target)
     end
 end
 
-% Funzione per simulare il veicolo lungo il percorso ottimo (opt_nodes)
-% con velocità costante negli intervalli, introducendo una fase di decelerazione
-% se la velocità corrente supera quella richiesta per raggiungere in tempo il crossing.
-% Il veicolo utilizza l'accelerazione "accel" (per decelerare) e, se serve, attende.
-function [t_sim, d_sim, v_sim] = simulate_vehicle_segmented(opt_nodes, dt, traffic_lights, init_speed, accel)
-    t_sim = []; d_sim = []; v_sim = [];
-    currentTime = 0; currentDist = 0;
-    currentSpeed = init_speed;
-    
-    t_sim(end+1) = currentTime; d_sim(end+1) = currentDist; v_sim(end+1) = currentSpeed;
-    
-    for i = 2:length(opt_nodes)
-        targetTime = opt_nodes(i).t;
-        targetDist = opt_nodes(i).d;
-        T_seg = targetTime - currentTime;
-        D_seg = targetDist - currentDist;
-        
-        % Calcola la velocità "naturale" richiesta per percorrere il segmento in tempo
-        v_req = D_seg / T_seg;
-        
-        if currentSpeed > v_req
-            % Simula fase di decelerazione da currentSpeed a v_req con decelerazione costante -accel
-            t_dec = (currentSpeed - v_req)/accel;
-            d_dec = currentSpeed*t_dec - 0.5*accel*t_dec^2;
-            % Dopo la decelerazione, percorrere il rimanente a velocità v_req
-            d_rem = D_seg - d_dec;
-            t_const = d_rem / v_req;
-            t_total = t_dec + t_const;
-            
-            % Se t_total è inferiore al tempo previsto, inserisci attesa
-            t_wait = max(0, T_seg - t_total);
-            
-            % Simula decelerazione
-            t_vec_dec = currentTime:dt:(currentTime + t_dec);
-            if t_vec_dec(end) < currentTime+t_dec, t_vec_dec(end+1) = currentTime+t_dec; end
-            v_vec_dec = currentSpeed - accel*(t_vec_dec - currentTime);
-            d_vec_dec = currentDist + currentSpeed*(t_vec_dec - currentTime) - 0.5*accel*(t_vec_dec - currentTime).^2;
-            
-            % Simula corsa a velocità costante v_req
-            t_start_const = t_vec_dec(end);
-            t_vec_const = t_start_const:dt:(t_start_const + t_const);
-            if t_vec_const(end) < t_start_const+t_const, t_vec_const(end+1) = t_start_const+t_const; end
-            d_start_const = d_vec_dec(end);
-            d_vec_const = d_start_const + v_req*(t_vec_const - t_start_const);
-            
-            % Simula attesa (velocità zero)
-            t_start_wait = t_vec_const(end);
-            t_vec_wait = t_start_wait:dt:(t_start_wait+t_wait);
-            if t_vec_wait(end) < t_start_wait+t_wait, t_vec_wait(end+1) = t_start_wait+t_wait; end
-            d_vec_wait = d_vec_const(end)*ones(size(t_vec_wait));
-            v_vec_wait = zeros(size(t_vec_wait));
-            
-            % Aggiorna vettori per il segmento
-            t_seg_vect = [t_vec_dec(2:end) t_vec_const(2:end) t_vec_wait(2:end)];
-            d_seg_vect = [d_vec_dec(2:end) d_vec_const(2:end) d_vec_wait(2:end)];
-            v_seg_vect = [v_vec_dec(2:end) v_vec_const(2:end) v_vec_wait(2:end)];
-            
-            currentSpeed = v_req; % al termine la velocità è v_req
-            currentTime = t_seg_vect(end);
-            currentDist = d_seg_vect(end);
-        else
-            % Se currentSpeed <= v_req, il veicolo parte a velocità costante v_req
-            t_vec = currentTime:dt:targetTime;
-            if t_vec(end) < targetTime, t_vec(end+1) = targetTime; end
-            d_vec = currentDist + v_req*(t_vec - currentTime);
-            v_vec = repmat(v_req, size(t_vec));
-            currentSpeed = v_req;
-            currentTime = t_vec(end);
-            currentDist = d_vec(end);
-            
-            t_seg_vect = t_vec(2:end);
-            d_seg_vect = d_vec(2:end);
-            v_seg_vect = v_vec(2:end);
-        end
-        
-        % Quando si è ad un incrocio, controlla il semaforo
-        if opt_nodes(i).int > 0 && opt_nodes(i).int <= length(traffic_lights)
-            light = traffic_lights(opt_nodes(i).int);
-            if ~is_green(light, currentTime)
-                t_wait2 = next_green(light, currentTime) - currentTime;
-                t_vec_wait2 = currentTime:dt:(currentTime+t_wait2);
-                if t_vec_wait2(end) < currentTime+t_wait2, t_vec_wait2(end+1) = currentTime+t_wait2; end
-                d_vec_wait2 = currentDist * ones(size(t_vec_wait2));
-                v_vec_wait2 = zeros(size(t_vec_wait2));
-                t_seg_vect = [t_seg_vect, t_vec_wait2(2:end)];
-                d_seg_vect = [d_seg_vect, d_vec_wait2(2:end)];
-                v_seg_vect = [v_seg_vect, v_vec_wait2(2:end)];
-                currentTime = t_vec_wait2(end);
-            end
-        end
-        
-        % Accumula i dati di simulazione
-        t_sim = [t_sim, t_seg_vect];
-        d_sim = [d_sim, d_seg_vect];
-        v_sim = [v_sim, v_seg_vect];
-    end
-end
