@@ -1,10 +1,10 @@
+
 clear;
 clc;
 close all;
 
 % Parametri dei veicoli
-n_vehicles = 4; % Numero di veicoli
-
+n_vehicles = 3; % Numero di veicoli
 m = 1000 * ones(1, n_vehicles); 
 b1 = 450;
 b2 = 450;
@@ -33,7 +33,7 @@ t_CTH = 1.5; % Tempo di separazione tra i veicoli
 
 % Definisci le posizioni dei semafori e le velocità target corrispondenti
 traffic_light_positions = [300, 600, 900, 1200, 1550];
-v_targets =  [ 8.571, 15.000, 15.000, 15.000, 17.500,  7.143];  % Un valore di velocità per ogni semaforo
+v_targets = [8.571, 15.000, 15.000, 15.000, 17.500, 7.143];
 
 % Condizioni iniziali: posizioni e velocità
 x0 = zeros(2 * n_vehicles, 1);
@@ -78,7 +78,7 @@ for i = 2:n_vehicles
     distances(i-1, :) = x(:, 1) - x(:, i);  % distanza tra veicolo i e il leader
 end
 
-% Grafico delle distanze tra veicoli
+% Grafico delle distanze tra i veicoli
 figure;
 for i = 1:n_vehicles-1
     plot(t, distances(i, :));
@@ -128,7 +128,7 @@ scatter(all_times, all_distances, 10, all_colors, 'filled', 'DisplayName','Semaf
 
 % Plot delle posizioni dei veicoli
 for i = 1:n_vehicles
-    plot(t, x(:, i), 'DisplayName', ['Veicolo p' num2str(i)]);
+    plot(t, x(:, i), 'DisplayName', ['Posizione p' num2str(i)]);
 end
 title('Posizioni dei veicoli + Mappa semafori');
 xlabel('Tempo [s]');
@@ -137,6 +137,7 @@ legend('show');
 
 % =============================================================================
 % Funzione di dinamica - con velocità target dinamica
+% E controllo semaforo rosso (print su Command Window)
 % =============================================================================
 function dx = system_dynamics( ...
     t, x, n_vehicles, m, delta, d_min, ...
@@ -147,15 +148,15 @@ function dx = system_dynamics( ...
 
     dx = zeros(2 * n_vehicles, 1);
 
-    % Calcolo del passo temporale (dt) in maniera semplificata
+    % Calcolo del passo temporale (dt)
     persistent t_prev
     if isempty(t_prev)
         t_prev = t;
     end
-    dt = 0.01;  % step fisso per l'approssimazione derivata
+    dt = 0.01; 
     t_prev = t;
 
-    % Inizializzazione variabili PID se necessario
+    % Variabili PID persistenti
     persistent error_integral_speed previous_error_speed
     persistent error_integral_dist  previous_error_dist
     if isempty(error_integral_speed) || isempty(error_integral_dist)
@@ -165,70 +166,82 @@ function dx = system_dynamics( ...
         previous_error_dist = zeros(n_vehicles, 1);
     end
 
+    % Flag persistenti per evitare messaggi multipli
+    persistent hasPassed
+    if isempty(hasPassed)
+        % hasPassed(i,j) = 0 => il veicolo i non ha ancora superato l’incrocio j
+        hasPassed = false(n_vehicles, length(traffic_light_positions));
+    end
+
     for i = 1:n_vehicles
         
         % Derivata della posizione = velocità
         dx(i) = x(n_vehicles + i);
         
         if i == 1
-            % Leader: PID sulla velocità con v_target dinamico
+            % Leader: PID con v_target dinamico
             current_v_target = get_current_v_target(x(1), traffic_light_positions, v_targets);
             velocity_error = current_v_target - x(n_vehicles + 1);
 
-            % Integrale e derivata dell'errore
             error_integral_speed = error_integral_speed + velocity_error * dt;
             velocity_derivative  = (velocity_error - previous_error_speed) / dt;
 
-            % Controllo PID della velocità -> forza
             U_leader = K_p_speed * velocity_error ...
                      + K_i_speed * error_integral_speed ...
                      + K_d_speed * velocity_derivative;
             previous_error_speed = velocity_error;
 
-            % a = (U_leader + delta(t)) / m(1)
             dx(n_vehicles + 1) = (U_leader + delta(t)) / m(1);
 
-            % Limiti di sicurezza sulla velocità
-            max_speed = 30;  
+            max_speed = 30; 
             current_speed = x(n_vehicles + 1) + dx(n_vehicles + 1)*dt; 
             if current_speed < 0
                 current_speed = 0;
             elseif current_speed > max_speed
                 current_speed = max_speed;
             end
-
-            % Sovrascrivo la derivata
             dx(n_vehicles + 1) = (current_speed - x(n_vehicles + 1)) / dt;
 
         else
-            % Follower: PID sulla distanza dal veicolo precedente
+            % Follower: PID sulla distanza
             distance = x(i) - x(i-1);
 
             v_1 = x(n_vehicles + i);  
             d_CHT = -(d_min + t_CTH * v_1);
             
             dist_error = d_CHT - distance;
-            
-            % Integrale e derivata dell'errore di distanza
             error_integral_dist(i) = error_integral_dist(i) + dist_error * dt;
             distance_derivative = (dist_error - previous_error_dist(i)) / dt;
             previous_error_dist(i) = dist_error;
             
-            % Controllo PID della distanza
             U_dist = K_p_dist * dist_error ...
                    + K_i_dist * error_integral_dist(i) ...
                    + K_d_dist * distance_derivative;
 
             dx(n_vehicles + i) = (U_dist) / m(i);
             
-            % Velocità ipotetica
             hypotetical_speed = x(n_vehicles + i) + dx(n_vehicles + i)*dt;
             if hypotetical_speed < 0
-                % Esempio: potrei impostare a zero
-                % hypotetical_speed = 0;
+                % velocità < 0 => eventuale arresto, se serve
             end
-            
             dx(n_vehicles + i) = (hypotetical_speed - x(n_vehicles + i)) / dt;
+        end
+    end
+
+    % -------------------------------------------------
+    % Check se un veicolo sta passando su un incrocio col rosso
+    % -------------------------------------------------
+    for i = 1:n_vehicles
+        for j = 1:length(traffic_light_positions)
+            if ~hasPassed(i,j) && x(i) >= traffic_light_positions(j)
+                % Il veicolo i ha appena superato l'incrocio j la prima volta
+                hasPassed(i,j) = true; 
+                % Controlla se è rosso
+                if ~is_green(create_traffic_light( ...
+                        traffic_light_positions(j), 0, 10, 30), t)
+                    fprintf('Veicolo %d passa col rosso all''incrocio %d\n', i, j);
+                end
+            end
         end
     end
 end
@@ -237,10 +250,7 @@ end
 % Definisci la funzione che determina la velocità target
 % =============================================================================
 function vt = get_current_v_target(x_leader, traffic_light_positions, v_targets)
-    % Trova la prima posizione di semaforo che x_leader non ha ancora raggiunto
     idx = find(x_leader < traffic_light_positions, 1);
-
-    % Se il veicolo ha superato tutti i semafori, usa l'ultimo target
     if isempty(idx)
         vt = v_targets(end);
     else

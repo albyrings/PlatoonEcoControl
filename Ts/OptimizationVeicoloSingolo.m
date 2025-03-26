@@ -161,6 +161,18 @@ end
 opt_nodes = Nodes(path);
 opt_t = arrayfun(@(n) n.t, opt_nodes);
 opt_d = arrayfun(@(n) n.d, opt_nodes);
+
+speeds = zeros(1, length(path) - 1);
+for k = 1:length(path)-1
+    idxA = path(k);
+    idxB = path(k+1);
+    delta_d = Nodes(idxB).d - Nodes(idxA).d;
+    delta_t = Nodes(idxB).t - Nodes(idxA).t;
+    speeds(k) = delta_d / delta_t;  % velocità media fra i due nodi
+end
+
+disp('Velocità media su ciascun segmento (m/s):');
+disp(['[ ' num2str(speeds, '%.3f, ') ']']);
 plot(opt_t, opt_d, 'k--', 'LineWidth', 3);  % visualizza solo la traiettoria ottima
 
 %% =============================================================================
@@ -175,17 +187,7 @@ plot(opt_t, opt_d, 'k--', 'LineWidth', 3);  % visualizza solo la traiettoria ott
 % - Se il tempo totale del tratto risulta inferiore al tempo previsto, il veicolo attende.
 % - Infine, se al momento dell'arrivo il semaforo è rosso, attende fino a next_green.
 dt = 0.01;  % passo di simulazione
-figure;
-subplot(2,1,1);
-plot(t_seg, d_seg, 'm-', 'LineWidth', 2);
-xlabel('Tempo (s)'); ylabel('Distanza (m)');
-title('Traiettoria simulata (velocità costante fra incroci)');
-grid on;
-subplot(2,1,2);
-plot(t_seg, v_seg, 'c-', 'LineWidth', 2);
-xlabel('Tempo (s)'); ylabel('Velocità (m/s)');
-title('Andamento della velocità (varia in prossimità degli incroci)');
-grid on;
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% FUNZIONI LOCALI
