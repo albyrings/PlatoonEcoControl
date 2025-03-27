@@ -1,7 +1,7 @@
 clear;
 clc;
 close all;
-
+%%%% inserisci a mano il vettore
 % Parametri dei veicoli
 n_vehicles = 4; % Numero di veicoli
 
