@@ -7,6 +7,9 @@ reset_persistent_variables();
 global SIM_RUNS;    % Per salvare le singole simulazioni e creare un plot unico
 SIM_RUNS = {};      % Ciascun elemento: struct con campi (t, x, offset, leader)
 
+global N_PLATOON;   % Variabile globale per il numero di platoon
+N_PLATOON = 1;      % Inizializzazione
+
 disp('=== Avvio prima simulazione con Leader=1 ===');
 run_optimizer_and_plot(1, 0);   % Leader veicolo 1, offset tempo = 0
 
@@ -28,8 +31,6 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     v_max = 30;  
     b1 = 0.1;  
     b2 = 0.01;
-    %delta_func = @(t) 0 * (b1 + b2*(sin((1/b3)*t+b4) + 0.25*rand)); % Forza esterna (N)
-
 
     fprintf('\n[INFO] run_optimizer_and_plot(Leader=%d, offset=%.2f)\n', leader_vehicle, time_offset);
 
@@ -142,7 +143,7 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     disp(num2str(speeds,'%.2f '));
 
     % Simulazione ODE
-    n_vehicles=2;
+    n_vehicles=13;
     m_vehicles=1000*ones(1,n_vehicles);
     v_targets=speeds;  
 
@@ -191,7 +192,7 @@ function dx = system_dynamics_new_platoon(t, x, n_vehicles,m, delta_func, ...
     persistent t_prev
     if isempty(t_prev), t_prev= t; end
     dt= t- t_prev;
-    if dt<=0, dt=0.01; end
+    if dt<=0, dt=0.001; end
     t_prev= t;
 
     persistent e_int_speed e_old_speed
@@ -255,8 +256,8 @@ function vt= get_current_v_target_indexed(x_leader, traffic_lights, v_targets)
 end
 
 function check_red_light_violations(t_abs, x_sim, traffic_lights,T)
-    persistent new_leader_detected
-    if isempty(new_leader_detected), new_leader_detected= false; end
+    persistent red_light_violations
+    if isempty(red_light_violations), red_light_violations = {}; end
 
     n_vehicles= size(x_sim,2)/2;
     for v=1:n_vehicles
@@ -267,10 +268,15 @@ function check_red_light_violations(t_abs, x_sim, traffic_lights,T)
             if ~isempty(cross_idx)
                 cross_time= t_abs(cross_idx);
                 if ~is_green(traffic_lights(L), cross_time)
-                    fprintf('\n[WARNING] Veicolo %d passa col rosso a incrocio %d (t=%.2f s)\n',...
-                        v,L,cross_time);
-                    if ~new_leader_detected
-                        new_leader_detected= true;
+                    % Verifica se questa violazione è già stata registrata
+                    violation_key = sprintf('%d_%d_%.1f', v, L, cross_time);
+                    if ~ismember(violation_key, red_light_violations)
+                        fprintf('\n[WARNING] Veicolo %d passa col rosso a incrocio %d (t=%.2f s)\n',...
+                            v,L,cross_time);
+                        
+                        % Aggiungi questa violazione alla lista
+                        red_light_violations{end+1} = violation_key;
+                        
                         fprintf('>> Veicolo %d diventa leader di un nuovo plotone!\n',v);
                         
                         % Aggiorna i veicoli staccati nell'ultimo run
@@ -279,8 +285,8 @@ function check_red_light_violations(t_abs, x_sim, traffic_lights,T)
                         SIM_RUNS{last_idx}.splittedVehicles = v:n_vehicles;
                         
                         rerun_optimizer_for_new_leader(v, T);
+                        return; % Processa una violazione alla volta
                     end
-                    return;
                 end
             end
         end
@@ -291,13 +297,11 @@ function rerun_optimizer_for_new_leader(violating_vehicle, T)
     % Azzera le persistent
     clear system_dynamics_new_platoon
     clear get_current_v_target_indexed
-    clear check_red_light_violations
-
+    
     global SIM_RUNS
     global N_PLATOON
-    N_PLATOON = 1;
-    % L'ultimo run (il n-esimo) ha finito a ~150 secondi locali, ma in tempo assoluto = actual_time + ???
-
+    
+    % L'ultimo run ha finito a ~150 secondi locali, ma in tempo assoluto = actual_time + offset
     disp(['[INFO] Ricalcolo con NUOVO LEADER=', num2str(violating_vehicle), ...
           ', riparto da tempo assoluto=', num2str(N_PLATOON*T)]);
 
@@ -359,7 +363,7 @@ function final_plot()
         x = runData.x;
         
         % Verifica se ci sono veicoli da NON plottare in questo run
-        if isfield(runData, 'splittedVehicles')
+        if isfield(runData, 'splittedVehicles') && ~isempty(runData.splittedVehicles)
             splitted = runData.splittedVehicles;
         else
             splitted = [];
@@ -553,8 +557,6 @@ function [path, cost] = dijkstra(Nodes, Edges, source, target)
     end
 end
 
-
-
 function reset_persistent_variables()
     % Resetta esplicitamente le funzioni che usano variabili persistent
     clear system_dynamics_new_platoon
@@ -564,4 +566,8 @@ function reset_persistent_variables()
     % Anche in funzioni ausiliarie che potrebbero avere variabili persistent
     clear next_green
     clear prev_green
+    
+    % Assicurati che la variabile globale N_PLATOON sia inizializzata
+    global N_PLATOON
+    N_PLATOON = 1;
 end

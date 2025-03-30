@@ -1,7 +1,8 @@
-%%%% filepath: /path/to/main_integrato.m
-%%%% riplan platoon completo
-
-clear; clc; close all;
+clear;
+clearAllMemoizedCaches; 
+clc; 
+close all;
+reset_persistent_variables();
 
 global SIM_RUNS;    % Per salvare le singole simulazioni e creare un plot unico
 SIM_RUNS = {};      % Ciascun elemento: struct con campi (t, x, offset, leader)
@@ -9,11 +10,10 @@ SIM_RUNS = {};      % Ciascun elemento: struct con campi (t, x, offset, leader)
 disp('=== Avvio prima simulazione con Leader=1 ===');
 run_optimizer_and_plot(1, 0);   % Leader veicolo 1, offset tempo = 0
 
-%%%% --- Alla fine di tutto, disegna un unico grafico cumulativo
 final_plot();   
 
 %%%% --------------------------------------------------------------------
-%%%%         F U N Z I O N I   L O C A L I
+%%%%                    F U N Z I O N I   
 %%%% --------------------------------------------------------------------
 
 function run_optimizer_and_plot(leader_vehicle, time_offset)
@@ -28,6 +28,8 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     v_max = 30;  
     b1 = 0.1;  
     b2 = 0.01;
+    %delta_func = @(t) 0 * (b1 + b2*(sin((1/b3)*t+b4) + 0.25*rand)); % Forza esterna (N)
+
 
     fprintf('\n[INFO] run_optimizer_and_plot(Leader=%d, offset=%.2f)\n', leader_vehicle, time_offset);
 
@@ -145,7 +147,7 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     v_targets=speeds;  
 
     % PID
-    K_p_speed=7000; K_i_speed=0; K_d_speed=0.7;
+    K_p_speed=7000; K_i_speed=0; K_d_speed=0.1;
     K_p_dist=2000;  K_i_dist=0.8;K_d_dist=0.4;
     t_CTH=1.5;  
     d_init=4;
@@ -171,74 +173,99 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
         'x', x_sim, ...
         'offset', time_offset, ...
         'traffic_lights', traffic_lights, ...
-        'splittedVehicles', []);  % Veicoli che vanno via
+        'splittedVehicles', [], ...
+        'v_targets', speeds, ...
+        'opt_t', opt_t + time_offset, ... % Salvo anche tempi ottimali
+        'opt_d', opt_d);  % e distanze ottimali
 
     % Check passaggi col rosso su tempo ASSOLUTO
-    check_red_light_violations(T_abs, x_sim, traffic_lights);
+    check_red_light_violations(T_abs, x_sim, traffic_lights,T);
 end
 
-function dx = system_dynamics_new_platoon(t, x, n_vehicles,m, delta_func, ...
-    traffic_lights,v_targets,t_CTH,K_p_speed,K_i_speed,K_d_speed,K_p_dist,K_i_dist,K_d_dist, ...
-    leader_vehicle,time_offset)
+function dx = system_dynamics_new_platoon(t, x, n_vehicles, m, delta_func, ...
+    traffic_lights, v_targets, t_CTH, K_p_speed, K_i_speed, K_d_speed, K_p_dist, K_i_dist, K_d_dist, ...
+    leader_vehicle, time_offset)
     % Usa tempo "assoluto" = t + time_offset
-    dx= zeros(2*n_vehicles,1);
+    dx = zeros(2*n_vehicles, 1);
 
+    % Calcolo corretto di dt
     persistent t_prev
-    if isempty(t_prev), t_prev= t; end
-    dt= t- t_prev;
-    if dt<=0, dt=0.001; end
-    t_prev= t;
+    if isempty(t_prev), t_prev = t; end
+    dt = t - t_prev;
+    if dt <= 0, dt = 0.001; end  % Valore minimo garantito per dt
+    t_prev = t;  % Aggiorno t_prev dopo aver calcolato dt
 
+    % Variabili PID
     persistent e_int_speed e_old_speed
     persistent e_int_dist  e_old_dist
-    if isempty(e_int_speed), e_int_speed=0; e_old_speed=0; end
-    if isempty(e_int_dist),  e_int_dist=zeros(n_vehicles,1); e_old_dist=zeros(n_vehicles,1); end
+    if isempty(e_int_speed), e_int_speed = 0; e_old_speed = 0; end
+    if isempty(e_int_dist),  e_int_dist = zeros(n_vehicles, 1); e_old_dist = zeros(n_vehicles, 1); end
 
-    abs_t= t + time_offset;  % tempo assoluto
+    abs_t = t + time_offset;  % tempo assoluto
 
-    for i=1:n_vehicles
-        dx(i)= x(n_vehicles + i);
-        if i==leader_vehicle
-            vt= get_current_v_target_indexed(x(leader_vehicle), traffic_lights, v_targets);
-            vel_err= vt - x(n_vehicles + i);
+    for i = 1:n_vehicles
+        % La derivata della posizione è la velocità
+        dx(i) = x(n_vehicles + i);
+        
+        if i == leader_vehicle
+            % --- LEADER: controllo velocità ---
+            vt = get_current_v_target_indexed(x(leader_vehicle), traffic_lights, v_targets);
+            vel_err = vt - x(n_vehicles + i);
 
-            e_int_speed= e_int_speed + vel_err*dt;
-            vel_deriv= (vel_err- e_old_speed)/dt;
-            e_old_speed= vel_err;
+            % Integrale dell'errore (senza anti-windup)
+            e_int_speed = e_int_speed + vel_err * dt;
+            
+            % Derivata dell'errore
+            vel_deriv = (vel_err - e_old_speed) / dt;
+            e_old_speed = vel_err;
 
-            U_leader= K_p_speed*vel_err + K_i_speed*e_int_speed + K_d_speed*vel_deriv;
-            dx(n_vehicles+i)= (U_leader + delta_func(abs_t))/m(i);
+            % Controllo PID -> forza
+            U_leader = K_p_speed * vel_err + K_i_speed * e_int_speed + K_d_speed * vel_deriv;
+            dx(n_vehicles + i) = (U_leader + delta_func(abs_t)) / m(i);
 
-            max_speed=30;
-            new_vel= x(n_vehicles+i)+ dx(n_vehicles+i)*dt;
-            if new_vel<0, new_vel=0; end
-            if new_vel>max_speed, new_vel=max_speed; end
-            dx(n_vehicles+i)= (new_vel - x(n_vehicles+i))/dt;
+            % Limiti velocità
+            max_speed = 30;
+            new_vel = x(n_vehicles + i) + dx(n_vehicles + i) * dt;
+            if new_vel < 0, new_vel = 0; end
+            if new_vel > max_speed, new_vel = max_speed; end
+            dx(n_vehicles + i) = (new_vel - x(n_vehicles + i)) / dt;
         else
-            if i>1
-                dist= x(i)- x(i-1);
+            % --- FOLLOWER: controllo distanza ---
+            if i > 1
+                % Calcola la distanza dal veicolo precedente (corretta)
+                dist = x(i-1) - x(i);  % Positiva quando il veicolo precedente è davanti
             else
-                dist= 10;  
+                dist = 10;  % Caso speciale, non dovrebbe mai verificarsi
             end
-            v_cur   = x(n_vehicles + i);
-            d_min   = 1;
-            d_CHT   = -(d_min+ t_CTH*v_cur);
-            dist_err= d_CHT- dist;
+            
+            % Velocità attuale
+            v_cur = x(n_vehicles + i);
+            
+            % Distanza desiderata basata sulla velocità corrente
+            d_min_val = 1;
+            d_desired = d_min_val + t_CTH * v_cur;
+            
+            % Errore come (distanza attuale - distanza desiderata)
+            dist_err = dist - d_desired;
 
-            e_int_dist(i)= e_int_dist(i)+ dist_err*dt;
-            dist_deriv= (dist_err- e_old_dist(i))/dt;
-            e_old_dist(i)= dist_err;
+            % Integrale dell'errore (senza anti-windup)
+            e_int_dist(i) = e_int_dist(i) + dist_err * dt;
+            
+            % Derivata dell'errore
+            dist_deriv = (dist_err - e_old_dist(i)) / dt;
+            e_old_dist(i) = dist_err;
 
-            U_dist= K_p_dist*dist_err + K_i_dist* e_int_dist(i) + K_d_dist*dist_deriv;
-            dx(n_vehicles+i)= U_dist/m(i);
+            % Controllo PID -> forza
+            U_dist = K_p_dist * dist_err + K_i_dist * e_int_dist(i) + K_d_dist * dist_deriv;
+            dx(n_vehicles + i) = U_dist / m(i);
 
-            new_vel= x(n_vehicles+i)+ dx(n_vehicles+i)*dt;
-            if new_vel<0, new_vel=0; end
-            dx(n_vehicles+i)= (new_vel- x(n_vehicles+i))/dt;
+            % Limite inferiore velocità
+            new_vel = x(n_vehicles + i) + dx(n_vehicles + i) * dt;
+            if new_vel < 0, new_vel = 0; end
+            dx(n_vehicles + i) = (new_vel - x(n_vehicles + i)) / dt;
         end
     end
 end
-
 function vt= get_current_v_target_indexed(x_leader, traffic_lights, v_targets)
     idx= find(x_leader < [traffic_lights.distance],1);
     if isempty(idx)
@@ -249,7 +276,7 @@ function vt= get_current_v_target_indexed(x_leader, traffic_lights, v_targets)
     end
 end
 
-function check_red_light_violations(t_abs, x_sim, traffic_lights)
+function check_red_light_violations(t_abs, x_sim, traffic_lights,T)
     persistent new_leader_detected
     if isempty(new_leader_detected), new_leader_detected= false; end
 
@@ -273,7 +300,7 @@ function check_red_light_violations(t_abs, x_sim, traffic_lights)
                         last_idx = length(SIM_RUNS);
                         SIM_RUNS{last_idx}.splittedVehicles = v:n_vehicles;
                         
-                        rerun_optimizer_for_new_leader(v, cross_time);
+                        rerun_optimizer_for_new_leader(v, T);
                     end
                     return;
                 end
@@ -282,7 +309,7 @@ function check_red_light_violations(t_abs, x_sim, traffic_lights)
     end
 end
 
-function rerun_optimizer_for_new_leader(violating_vehicle, actual_time)
+function rerun_optimizer_for_new_leader(violating_vehicle, T)
     % Azzera le persistent
     clear system_dynamics_new_platoon
     clear get_current_v_target_indexed
@@ -294,9 +321,9 @@ function rerun_optimizer_for_new_leader(violating_vehicle, actual_time)
     % L'ultimo run (il n-esimo) ha finito a ~150 secondi locali, ma in tempo assoluto = actual_time + ???
 
     disp(['[INFO] Ricalcolo con NUOVO LEADER=', num2str(violating_vehicle), ...
-          ', riparto da tempo assoluto=', num2str(N_PLATOON*30)]);
+          ', riparto da tempo assoluto=', num2str(N_PLATOON*T)]);
 
-    start_offset = N_PLATOON*30;  
+    start_offset = N_PLATOON*T;  
     N_PLATOON = N_PLATOON + 1;
     run_optimizer_and_plot(violating_vehicle, start_offset);
 end
@@ -308,11 +335,11 @@ function final_plot()
         return;
     end
     
-    figure('Name','Grafico Unico Finale', 'Position', [100, 100, 1000, 600]);
+    % FIGURA 1: Posizione vs Tempo (come prima, ma in una figura separata)
+    figure('Name','Grafico Traiettorie', 'Position', [100, 100, 1000, 600]);
     hold on;
     
-    % PARTE 1: Plot dei semafori come scatter plot
-    % Prendiamo i semafori dal primo run (sono uguali per tutti)
+    % Plot dei semafori come scatter plot
     traffic_lights = SIM_RUNS{1}.traffic_lights;
     
     % Troviamo il tempo max nelle simulazioni
@@ -344,7 +371,7 @@ function final_plot()
     % Plot semafori
     scatter(all_times, all_distances, 10, all_colors, 'filled');
     
-    % PARTE 2: Plot delle traiettorie dei veicoli
+    % Plot delle traiettorie dei veicoli
     colors = {'b','r','g','m','c','y','k'};
     line_styles = {'-', '-', ':', '-.'};
     
@@ -369,18 +396,80 @@ function final_plot()
             color_idx = mod(v-1, length(colors))+1;
             line_idx = mod(run_i-1, length(line_styles))+1;
             
-            plot(t, x(:,v), [colors{color_idx}, line_styles{line_idx}], 'LineWidth', 2, ...
-                 'DisplayName', ['Run' num2str(run_i) '-Veic' num2str(v) ...
-                                ' (leader=' num2str(runData.leader) ')']);
+            plot(t, x(:,v), [colors{color_idx}, line_styles{line_idx}], 'LineWidth', 2);
         end
     end
     
-    % Configurazione plot
+    % Configurazione plot posizione
     xlabel('Tempo [s]');
     ylabel('Posizione [m]');
-    title('Simulazione con tempo assoluto, stacco plotone e semafori');
-    legend('show', 'Location', 'northwest');
+    title('Traiettorie veicoli e stato semafori');
     grid on;
+    
+    % FIGURE SEPARATE: Una figura per ogni leader
+    % Identifico i leader unici presenti nelle simulazioni
+    leaders = [];
+    for run_i=1:length(SIM_RUNS)
+        if ~ismember(SIM_RUNS{run_i}.leader, leaders)
+            leaders = [leaders, SIM_RUNS{run_i}.leader];
+        end
+    end
+    
+    % Per ogni leader, creo una figura separata
+    for l=1:length(leaders)
+        current_leader = leaders(l);
+        
+        % Creo una nuova figura per il leader corrente
+        figure('Name',['Velocità Leader ' num2str(current_leader)], 'Position', [100+l*50, 100+l*50, 800, 500]);
+        hold on;
+        
+        % Mostro solo le simulazioni che hanno questo leader
+        for run_i=1:length(SIM_RUNS)
+            runData = SIM_RUNS{run_i};
+            
+            % Controllo se questa simulazione ha il leader corrente
+            if runData.leader == current_leader
+                t = runData.t;
+                x = runData.x;
+                leader = runData.leader;
+                n_vehicles = size(x,2)/2;
+                
+                % Estraggo la velocità reale del leader (seconda metà della matrice x)
+                leader_velocity = x(:, n_vehicles + leader);
+                
+                % Plotto la velocità reale in blu
+                plot(t, leader_velocity, 'b-', 'LineWidth', 2);
+                
+                % Calcolo e plotto la velocità target in rosso (profilo ideale dell'ottimizzatore)
+                if isfield(runData, 'opt_t') && isfield(runData, 'opt_d')
+                    % Calcolo le velocità ideali come derivata delle posizioni sui tempi ottimali
+                    opt_t = runData.opt_t;
+                    opt_d = runData.opt_d;
+                    opt_v = [];
+                    
+                    for i = 1:length(opt_t)-1
+                        v = (opt_d(i+1) - opt_d(i)) / (opt_t(i+1) - opt_t(i));
+                        opt_v = [opt_v, v];
+                    end
+                    
+                    % Plot del profilo ideale come linea rossa tratteggiata
+                    plot([opt_t(1:end-1); opt_t(2:end)], [opt_v; opt_v], 'r--', 'LineWidth', 2);
+                    
+                    % Aggiungo punti ai nodi del percorso ottimale
+                    scatter(opt_t(1:end-1), opt_v, 50, 'r', 'filled');
+                end
+            end
+        end
+        
+        % Configurazione plot velocità
+        xlabel('Tempo [s]');
+        ylabel('Velocità [m/s]');
+        title(['Velocità del veicolo leader ' num2str(current_leader)]);
+        grid on;
+        
+        % Limiti Y ragionevoli
+        ylim([0, 35]);
+    end
 end
 
 function light=create_traffic_light(distance, green_start, green_end, cycle_time)
@@ -484,4 +573,17 @@ function [path, cost] = dijkstra(Nodes, Edges, source, target)
             u= prev(u);
         end
     end
+end
+
+
+
+function reset_persistent_variables()
+    % Resetta esplicitamente le funzioni che usano variabili persistent
+    clear system_dynamics_new_platoon
+    clear check_red_light_violations
+    clear get_current_v_target_indexed
+    
+    % Anche in funzioni ausiliarie che potrebbero avere variabili persistent
+    clear next_green
+    clear prev_green
 end

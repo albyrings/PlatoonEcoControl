@@ -3,7 +3,7 @@ clc;
 close all;
 
 % Parametri dei veicoli
-n_vehicles = 3;          % Numero di veicoli
+n_vehicles = 2;          % Numero di veicoli
 m = 1000 * ones(1, n_vehicles); 
 b1 = 450;
 b2 = 450;
@@ -20,13 +20,12 @@ d_min = 1;
 % Parametri PID per il leader (controllo velocità)
 K_p_speed = 7000;     
 K_i_speed = 0;
-K_d_speed = 0.7;
+K_d_speed = 0;
 
 % Parametri PID per i follower (controllo distanza)
 K_p_dist = 2000;  
 K_i_dist = 0.8;  
 K_d_dist = 0.4;  
-
 
 % Velocità set point (target) del leader
 v_target = 9;  % Velocità desiderata in m/s
@@ -72,7 +71,7 @@ end
 % Calcolo delle distanze tra i veicoli
 distances = zeros(n_vehicles-1, length(t));
 for i = 2:n_vehicles
-    distances(i-1, :) = x(:, 1) - x(:, i);  % distanza tra veicolo i e il leader
+    distances(i-1, :) = x(:, i-1) - x(:, i);  % distanza tra veicolo e quello precedente
 end
 
 % Grafico delle distanze tra veicoli
@@ -106,36 +105,34 @@ function dx = system_dynamics( ...
 
     dx = zeros(2 * n_vehicles, 1);
 
-    % Calcolo del passo temporale (dt) in base al tempo t
-    % dt è la differenza tra t e t-1 (il passo precedente)
+    % Calcolo del passo temporale (dt) in modo corretto
     persistent t_prev
     if isempty(t_prev)
         t_prev = t; % Inizializzo t_prev al primo valore di t
     end
     
-    
-    t_prev = t;  % Aggiorno t_prev per il prossimo passo
+    dt = t - t_prev;
+    if dt <= 0
+        dt = 0.001; % Valore minimo garantito per dt
+    end
+    t_prev = t;  % Aggiorno t_prev per il prossimo passo (dopo il calcolo di dt)
 
-    
     % Variabili PID come 'persistent'
-    % (una per il leader, una per ogni follower)
     persistent error_integral_speed previous_error_speed
     persistent error_integral_dist  previous_error_dist
     
     if isempty(error_integral_speed) || isempty(error_integral_dist)
         error_integral_speed = 0;           % Leader (solo 1 valore)
-        previous_error_speed  = 0;
-        error_integral_dist  = zeros(n_vehicles, 1);  % follower
-        previous_error_dist   = zeros(n_vehicles, 1);
+        previous_error_speed = 0;
+        error_integral_dist = zeros(n_vehicles, 1);  % follower
+        previous_error_dist = zeros(n_vehicles, 1);
     end
     
-    % Stima del dt 
-    dt = 0.01;  %   -- Non è "fisicamente" l'actual step di ode45
-   
-   
-    
+    % Limiti per anti-windup
+    max_integral_speed = 1000;
+    max_integral_dist = 100;
+
     for i = 1:n_vehicles
-        
         % 1) La derivata della posizione è la velocità
         dx(i) = x(n_vehicles + i);
         
@@ -143,17 +140,21 @@ function dx = system_dynamics( ...
             %% --- LEADER: PID SULLA VELOCITÀ ---
             velocity_error = v_target - x(n_vehicles + 1);
             
-            % Integrale e derivata dell'errore
-            error_integral_speed = error_integral_speed + velocity_error * dt;
-            velocity_derivative  = (velocity_error - previous_error_speed) / dt;
+            % Integrale con anti-windup
+            if abs(error_integral_speed) < max_integral_speed || ...
+               (error_integral_speed >= max_integral_speed && velocity_error < 0) || ...
+               (error_integral_speed <= -max_integral_speed && velocity_error > 0)
+                error_integral_speed = error_integral_speed + velocity_error * dt;
+            end
+            
+            % Derivata dell'errore con filtro implicito
+            velocity_derivative = (velocity_error - previous_error_speed) / dt;
+            previous_error_speed = velocity_error;
             
             % Controllo PID della velocità -> "forza" di controllo
             U_leader = K_p_speed * velocity_error ...
                      + K_i_speed * error_integral_speed ...
                      + K_d_speed * velocity_derivative;
-                 
-            % Aggiorniamo lo stato "previous"
-            previous_error_speed = velocity_error;
             
             % a = (U_leader + delta(t)) / m(1)
             dx(n_vehicles + 1) = (U_leader + delta(t)) / m(1);
@@ -172,41 +173,45 @@ function dx = system_dynamics( ...
             
         else
             %% --- FOLLOWER i: PID SULLA DISTANZA RISPETTO AL PRIMO VEICOLO ---
-            % Calcolo della distanza dal primo veicolo (leader)
-            distance = x(i) - x(i-1);
-            if distance > 0
-                disp("distance > 0")
+            % Calcolo della distanza dal veicolo precedente
+            distance = x(i-1) - x(i);  % Distanza positiva quando precedente è davanti
+            
+            % Velocità del follower
+            v_follower = x(n_vehicles + i);
+            
+            % Distanza desiderata basata sulla velocità
+            d_desired = d_min + t_CTH * v_follower;
+            
+            % Errore: voglio distance = d_desired
+            dist_error = distance - d_desired;
+            
+            % Integrale con anti-windup
+            if abs(error_integral_dist(i)) < max_integral_dist || ...
+               (error_integral_dist(i) >= max_integral_dist && dist_error < 0) || ... 
+               (error_integral_dist(i) <= -max_integral_dist && dist_error > 0)
+                error_integral_dist(i) = error_integral_dist(i) + dist_error * dt;
             end
-            v_1 = x(n_vehicles + i);  % Velocità 
-            d_CHT = -(d_min + t_CTH * v_1);
-
             
-            % Errore: voglio distance = d_min (distanza dal leader)
-            dist_error = d_CHT - distance; 
-            
-            % Aggiorno integrale e derivata per i-esimo veicolo
-            error_integral_dist(i) = error_integral_dist(i) + dist_error * dt;
+            % Derivata dell'errore
             distance_derivative = (dist_error - previous_error_dist(i)) / dt;
             previous_error_dist(i) = dist_error;
             
-            % Calcolo forza di correzione (secondo PID)
+            % Calcolo forza di correzione con PID
             U_dist = K_p_dist * dist_error ...
                    + K_i_dist * error_integral_dist(i) ...
                    + K_d_dist * distance_derivative;
             
-            % Accelerazione = (U_dist + delta(t)) / m(i)
-            dx(n_vehicles + i) = (U_dist) / m(i);
+            % Accelerazione = U_dist / m(i)
+            dx(n_vehicles + i) = U_dist / m(i);
             
-            % Passo 1: calcola una velocità "ipotetica"
-            hypotetical_speed = x(n_vehicles + i) + dx(n_vehicles + i)*dt;
-            
-            if hypotetical_speed < 0  
-                % hypotetical_speed = 0; 
-             disp("hypotetical_speed < 0  ")
+            % Controllo velocità minima
+            new_speed = x(n_vehicles + i) + dx(n_vehicles + i)*dt;
+            if new_speed < 0  
+                new_speed = 0;
             end
             
-            % Finalmente scriviamo la derivata
-            dx(n_vehicles + i) = (hypotetical_speed - x(n_vehicles + i)) / dt;
+            % Aggiornamento derivata
+            dx(n_vehicles + i) = (new_speed - x(n_vehicles + i)) / dt;
         end
     end
 end

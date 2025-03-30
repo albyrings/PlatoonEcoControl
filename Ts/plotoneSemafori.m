@@ -58,18 +58,24 @@ t_span = [0 150];
 figure;
 for i = 1:n_vehicles
     % Velocità
+    
     subplot(2, n_vehicles, i);
-    plot(t, x(:, n_vehicles + i));
+    plot( x(:, n_vehicles + i));
+    hold on
+    plot( v_targets, "r");
     title(['Vel v' num2str(i)]);
     xlabel('Tempo [s]');
     ylabel('Velocità [m/s]');
-    
+ 
     % Posizione
-    subplot(2, n_vehicles, n_vehicles + i);
-    plot(t, x(:, i));
+
+    
     title(['Pos p' num2str(i)]);
     xlabel('Tempo [s]');
     ylabel('Posizione [m]');
+
+    
+
 end
 
 % Calcolo delle distanze tra i veicoli
