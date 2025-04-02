@@ -3,7 +3,7 @@ clc;
 close all;
 
 % Parametri dei veicoli
-n_vehicles = 2;          % Numero di veicoli
+n_vehicles = 4;          % Numero di veicoli
 m = 1000 * ones(1, n_vehicles); 
 b1 = 450;
 b2 = 450;

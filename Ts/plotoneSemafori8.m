@@ -192,7 +192,7 @@ function dx = system_dynamics_new_platoon(t, x, n_vehicles, m, delta_func, ...
     persistent t_prev
     if isempty(t_prev), t_prev = t; end
     dt = t - t_prev;
-    if dt <= 0, dt = 0.001; end  % Valore minimo garantito per dt
+    if dt <= 0, dt = 0.00001; end  % Valore minimo garantito per dt
     t_prev = t;  % Aggiorno t_prev dopo aver calcolato dt
 
     % Variabili PID
@@ -372,7 +372,7 @@ function final_plot()
     scatter(all_times, all_distances, 10, all_colors, 'filled');
     
     % Plot delle traiettorie dei veicoli
-    colors = {'b','r','g','m','c','y','k'};
+    colors = {'b'}; %'r','g','m','c','y','k'
     line_styles = {'-', '-', ':', '-.'};
     
     for run_i=1:length(SIM_RUNS)

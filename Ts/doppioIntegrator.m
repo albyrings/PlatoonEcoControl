@@ -3,9 +3,9 @@ clc;
 close all;
 
 % Parametri di simulazione
-t_span = [0 1000];        % 10 secondi di simulazione
+t_span = [0 500];        % 10 secondi di simulazione
 x0 = [0; 0; 0];         % Condizioni iniziali: [posizione; velocità; errore integrale]
-setpoint = 1;           % Posizione target
+setpoint = 15;           % Posizione target
 
 % Parametri PID
 Kp = 7;                 % Proporzionale
@@ -58,7 +58,7 @@ function dxdt = double_integrator_pid(t, x, setpoint, Kp, Ki, Kd)
     persistent last_t;
     if isempty(last_t), last_t = t; end
     dt = t - last_t;
-    if dt <= 0, dt = 0.001; end  % Evita dt = 0
+    if dt <= 0, dt = 0.01; end  % Evita dt = 0
     last_t = t;
     
     % Derivata dell'errore = -velocità per questo specifico sistema

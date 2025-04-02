@@ -47,7 +47,7 @@ end
 scatter(all_times, all_distances, 10, all_colors, 'filled');
 xlabel('Tempo (s)'); ylabel('Distanza (m)');
 title('Stato dei semafori nel tempo');
-legend(arrayfun(@(i) ['Semaforo ' num2str(i)], 1:nLights, 'UniformOutput', false));
+%legend(arrayfun(@(i) ['Semaforo ' num2str(i)], 1:nLights, 'UniformOutput', false));
 grid on; hold on;
 
 %% Tracciamento delle traiettorie di riferimento (pruning)
