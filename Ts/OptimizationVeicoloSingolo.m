@@ -8,7 +8,7 @@ T = 30;                   % Durata del ciclo del semaforo (s)
 tf = final_time;
 
 % Limiti di velocità (m/s)
-v_min = 5;   
+v_min = 3;   
 v_max = 30;  
 
 % Costanti per il calcolo dell'energia (valori esemplificativi)

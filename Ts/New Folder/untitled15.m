@@ -14,7 +14,7 @@ disp('=== Avvio prima simulazione con Leader=1 ===');
 run_optimizer_and_plot(1, 0);   % Leader veicolo 1, offset tempo = 0
 
 final_plot();
-differencePlots();
+%differencePlots();
 
 %%%% --------------------------------------------------------------------
 %%%%                    F U N Z I O N I   
@@ -144,7 +144,7 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     disp(num2str(speeds,'%.2f '));
 
     % Simulazione ODE
-    n_vehicles=4;
+    n_vehicles=6;
     m_vehicles=1000*ones(1,n_vehicles);
     v_targets=speeds;  
 

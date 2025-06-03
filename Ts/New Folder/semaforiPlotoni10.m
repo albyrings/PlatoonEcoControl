@@ -415,6 +415,24 @@ function final_plot()
     title('Traiettorie veicoli e stato semafori');
     grid on;
     
+     figure('Name','Grafico Traiettorie Ottimizzate','Position',[150,150,1000,600]);
+    hold on;
+    % ri-disegno semafori
+    scatter(all_times, all_distances, 10, all_colors, 'filled');
+    % disegno le traiettorie ottimali
+    for run_i = 1:length(SIM_RUNS)
+        runData = SIM_RUNS{run_i};
+        if isfield(runData,'opt_t') && isfield(runData,'opt_d')
+            plot(runData.opt_t, runData.opt_d, 'LineWidth', 2);
+        end
+    end
+    xlabel('Tempo [s]');
+    ylabel('Posizione [m]');
+    title('Traiettorie Ottimizzate dall''Ottimizzatore');
+    grid on;
+    hold on;
+
+
     % FIGURE SEPARATE: Una figura per ogni leader
     % Identifico i leader unici presenti nelle simulazioni
     leaders = [];

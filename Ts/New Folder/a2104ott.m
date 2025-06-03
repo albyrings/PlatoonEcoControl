@@ -36,7 +36,7 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     b2 = 0.01;
     b3 = 10;
     b4 = 4;
-    delta_func = @(t) -300000 * abs((b1 + b2*(sin((1/b3)*t+b4) + 0.25*rand)));
+    delta_func = @(t) -5000 * (b1 + b2*(sin((1/b3)*t+b4) + 0.25*rand));
 
     fprintf('\n[INFO] run_optimizer_and_plot(Leader=%d, offset=%.2f)\n', leader_vehicle, time_offset);
 

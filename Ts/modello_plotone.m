@@ -3,7 +3,7 @@ clc;
 close all;
 
 % Parametri dei veicoli
-n_vehicles = 4;          % Numero di veicoli
+n_vehicles = 3;          % Numero di veicoli
 m = 1000 * ones(1, n_vehicles); 
 b1 = 450;
 b2 = 450;
@@ -57,15 +57,15 @@ for i = 1:n_vehicles
     subplot(2, n_vehicles, i);
     plot(t, x(:, n_vehicles + i));
     title(['Vel v' num2str(i)]);
-    xlabel('Tempo [s]');
-    ylabel('Velocità [m/s]');
+    xlabel('Time [s]');
+    ylabel('Speed [m/s]');
     
     % Posizione
     subplot(2, n_vehicles, n_vehicles + i);
     plot(t, x(:, i));
-    title(['Pos p' num2str(i)]);
-    xlabel('Tempo [s]');
-    ylabel('Posizione [m]');
+    title(['Dist d' num2str(i)]);
+    xlabel('Time [s]');
+    ylabel('Distance [m]');
 end
 
 % Calcolo delle distanze tra i veicoli
@@ -81,8 +81,8 @@ for i = 1:n_vehicles-1
     hold on;
 end
 title('Distanza tra i veicoli');
-xlabel('Tempo [s]');
-ylabel('Distanza [m]');
+xlabel('Time [s]');
+ylabel('Distance [m]');
 legend(arrayfun(@(x) ['Distanza p' num2str(x) ' - p' num2str(x+1)], 1:n_vehicles-1, 'UniformOutput', false));
 
 % Aggiunta del grafico con le posizioni dei veicoli
@@ -92,8 +92,8 @@ for i = 1:n_vehicles
     plot(t, x(:, i), 'DisplayName', ['Posizione p' num2str(i)]);
 end
 title('Posizioni dei veicoli');
-xlabel('Tempo [s]');
-ylabel('Posizione [m]');
+xlabel('Time [s]');
+ylabel('Distance [m]');
 legend('show');
 
 %% Funzione di dinamica

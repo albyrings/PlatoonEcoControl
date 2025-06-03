@@ -47,10 +47,10 @@ end
 %% Plot dello stato dei semafori
 figure;
 scatter(all_times, all_distances, 10, all_colors, 'filled');
-xlabel('Tempo (s)');
-ylabel('Distanza (m)');
-title('Stato dei semafori nel tempo');
-legend(arrayfun(@(i) ['Semaforo ' num2str(i)], 1:nLights, 'UniformOutput', false));
+xlabel('Time (s)');
+ylabel('Distance (m)');
+title('');
+
 grid on;
 hold on;
 

@@ -145,7 +145,7 @@ function run_optimizer_and_plot(leader_vehicle, time_offset)
     disp(num2str(speeds,'%.2f '));
 
     % Simulazione ODE
-    n_vehicles=5;
+    n_vehicles=7;
     m_vehicles=1000*ones(1,n_vehicles);
     v_targets=speeds;  
 
